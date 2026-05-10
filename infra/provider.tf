@@ -11,7 +11,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket = "terraform-state-soat-fase05-hackton-g15"
+    bucket = "terraform-state-soat-fase05"
     
     key    = "lambda-auth/terraform.tfstate"
     region = "us-east-1"
