@@ -13,6 +13,18 @@ class CustomerRepository:
         self.port = int(os.environ.get("DB_PORT", 5432))
 
     def get_connection(self):
+        missing = [
+            name for name, value in {
+                "DB_HOST": self.host,
+                "DB_NAME": self.database,
+                "DB_USER": self.user,
+                "DB_PASS": self.password,
+            }.items()
+            if not value
+        ]
+        if missing:
+            raise ValueError(f"Variaveis de banco ausentes na Lambda: {', '.join(missing)}")
+
         # Conexão com timeout curto para não estourar o tempo da Lambda
         print(f"[DB] Conectando em host={self.host} db={self.database} user={self.user} port={self.port}")
         return psycopg2.connect(
