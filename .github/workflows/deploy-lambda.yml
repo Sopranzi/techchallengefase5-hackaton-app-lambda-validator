@@ -100,6 +100,29 @@ jobs:
       - name: Terraform Init
         run: terraform init -input=false
 
+      - name: Import existing Lambda functions
+        run: |
+          set -e
+          import_if_missing() {
+            addr=$1
+            function_name=$2
+
+            if terraform state list | grep -Fq "$addr"; then
+              echo "$addr ja esta no state."
+              return
+            fi
+
+            if aws lambda get-function --function-name "$function_name" >/dev/null 2>&1; then
+              echo "Importando Lambda existente $function_name em $addr..."
+              terraform import -input=false -no-color "$addr" "$function_name"
+            else
+              echo "Lambda $function_name ainda nao existe; Terraform pode criar."
+            fi
+          }
+
+          import_if_missing "aws_lambda_function.auth_function" "soat-auth-function"
+          import_if_missing "aws_lambda_function.authorizer_function" "soat-authorizer-function"
+
       - name: Terraform Plan
         run: terraform plan -input=false
 
@@ -186,6 +209,29 @@ jobs:
 
       - name: Terraform Init
         run: terraform init -input=false
+
+      - name: Import existing Lambda functions
+        run: |
+          set -e
+          import_if_missing() {
+            addr=$1
+            function_name=$2
+
+            if terraform state list | grep -Fq "$addr"; then
+              echo "$addr ja esta no state."
+              return
+            fi
+
+            if aws lambda get-function --function-name "$function_name" >/dev/null 2>&1; then
+              echo "Importando Lambda existente $function_name em $addr..."
+              terraform import -input=false -no-color "$addr" "$function_name"
+            else
+              echo "Lambda $function_name ainda nao existe; Terraform pode criar."
+            fi
+          }
+
+          import_if_missing "aws_lambda_function.auth_function" "soat-auth-function"
+          import_if_missing "aws_lambda_function.authorizer_function" "soat-authorizer-function"
 
       - name: Terraform Apply
         run: terraform apply -input=false -auto-approve
