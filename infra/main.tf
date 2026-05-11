@@ -3,17 +3,17 @@
 # 1. Empacotamento do Código (Zip)
 data "archive_file" "lambda_zip" {
   type        = "zip"
-  source_dir  = "../build" 
+  source_dir  = "../build"
   output_path = "lambda_function.zip"
 }
 
 # 2. A Função Lambda
 resource "aws_lambda_function" "auth_function" {
-  filename         = data.archive_file.lambda_zip.output_path
-  function_name    = "soat-auth-function"
-  
+  filename      = data.archive_file.lambda_zip.output_path
+  function_name = "soat-auth-function"
+
   # Usando a LabRole existente (Conforme seu ambiente AWS Academy)
-  role             = data.aws_iam_role.lab_role.arn 
+  role = data.aws_iam_role.lab_role.arn
 
   handler          = "src.main.lambda_handler"
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
@@ -34,6 +34,7 @@ resource "aws_lambda_function" "auth_function" {
       DB_NAME    = var.db_name
       DB_USER    = var.db_user
       DB_PASS    = var.db_password
+      DB_PORT    = tostring(var.db_port)
     }
   }
 
