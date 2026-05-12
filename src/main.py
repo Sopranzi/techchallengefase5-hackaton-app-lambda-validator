@@ -5,6 +5,23 @@ import re
 import jwt
 from src.adapters.customer_repository import CustomerRepository
 
+CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization",
+    "Access-Control-Allow-Methods": "POST,OPTIONS",
+}
+
+
+def response(status_code: int, body: dict):
+    return {
+        "statusCode": status_code,
+        "headers": {
+            "Content-Type": "application/json",
+            **CORS_HEADERS,
+        },
+        "body": json.dumps(body),
+    }
+
 # --- Funções Auxiliares ---
 
 def clean_cpf_str(cpf: str) -> str:
@@ -32,13 +49,13 @@ class AuthService:
 
         if not raw_cpf:
             print("[AUTH] CPF ausente no payload")
-            return {"statusCode": 400, "body": json.dumps({"error": "CPF é obrigatório"})}
+            return response(400, {"error": "CPF é obrigatório"})
 
         cpf = clean_cpf_str(raw_cpf)
 
         if not validate_cpf_format(cpf):
             print(f"[AUTH] CPF inválido format={raw_cpf} clean={cpf}")
-            return {"statusCode": 400, "body": json.dumps({"error": "CPF inválido"})}
+            return response(400, {"error": "CPF inválido"})
 
         # Busca no banco
         print(f"[AUTH] Buscando cliente cpf={cpf}")
@@ -46,7 +63,7 @@ class AuthService:
 
         if not customer:
             print(f"[AUTH] Cliente não encontrado cpf={cpf}")
-            return {"statusCode": 404, "body": json.dumps({"error": "Cliente não encontrado"})}
+            return response(404, {"error": "Cliente não encontrado"})
 
         user_role = "client"
 
@@ -59,7 +76,7 @@ class AuthService:
                 user_role = "admin"
             else:
                 print(f"[AUTH] Senha incorreta cpf={cpf}")
-                return {"statusCode": 401, "body": json.dumps({"error": "Senha incorreta"})}
+                return response(401, {"error": "Senha incorreta"})
         
         # Cenário 2: Cliente (não enviou senha, mas CPF existe)
         else:
@@ -69,14 +86,11 @@ class AuthService:
         print(f"[AUTH] Gerando token cpf={cpf} role={user_role}")
         token = self.generate_token(cpf, user_role)
 
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "access_token": token,
-                "role": user_role,
-                "expires_in": 1800
-            })
-        }
+        return response(200, {
+            "access_token": token,
+            "role": user_role,
+            "expires_in": 1800
+        })
 
     def signup(self, body):
         raw_cpf = body.get("cpf") or body.get("document")
@@ -86,13 +100,13 @@ class AuthService:
 
         if not raw_cpf:
             print("[SIGNUP] CPF ausente no payload")
-            return {"statusCode": 400, "body": json.dumps({"error": "CPF é obrigatório"})}
+            return response(400, {"error": "CPF é obrigatório"})
 
         cpf = clean_cpf_str(raw_cpf)
         
         if not validate_cpf_format(cpf):
             print(f"[SIGNUP] CPF inválido format={raw_cpf} clean={cpf}")
-            return {"statusCode": 400, "body": json.dumps({"error": "CPF inválido"})}
+            return response(400, {"error": "CPF inválido"})
 
         # Captura o sucesso E a mensagem de erro detalhada
         print(f"[SIGNUP] Inserindo cpf={cpf} name={name} email={email}")
@@ -100,20 +114,14 @@ class AuthService:
         
         if success:
             print(f"[SIGNUP] Sucesso cpf={cpf}")
-            return {
-                "statusCode": 201, 
-                "body": json.dumps({"message": "Cliente cadastrado com sucesso!"})
-            }
+            return response(201, {"message": "Cliente cadastrado com sucesso!"})
         else:
             # Retorna o erro exato do banco de dados para debugging
             print(f"[SIGNUP] Falha cpf={cpf} err={error_message}")
-            return {
-                "statusCode": 500, # Mudando para 500 para indicar erro de execução
-                "body": json.dumps({
-                    "error": "Falha ao cadastrar no banco.",
-                    "db_details": error_message # AQUI ESTÁ A RESPOSTA QUE PRECISAMOS
-                })
-            }
+            return response(500, {
+                "error": "Falha ao cadastrar no banco.",
+                "db_details": error_message
+            })
 
     def generate_token(self, cpf: str, role: str) -> str:
         payload = {
@@ -129,9 +137,13 @@ class AuthService:
 
 def lambda_handler(event, context):
     try:
+        method = event.get("requestContext", {}).get("http", {}).get("method") or event.get("httpMethod")
+        if method == "OPTIONS":
+            return response(200, {"ok": True})
+
         body_str = event.get("body", "{}")
         if not body_str:
-            return {"statusCode": 400, "body": json.dumps({"error": "Body vazio"})}
+            return response(400, {"error": "Body vazio"})
             
         # Tratamento para quando o body já vem como dict (testes locais) ou string (API Gateway)
         if isinstance(body_str, str):
@@ -150,7 +162,4 @@ def lambda_handler(event, context):
 
     except Exception as e:
         print(f"Erro critico: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps({"error": "Erro interno no servidor"})
-        }
+        return response(500, {"error": "Erro interno no servidor"})
