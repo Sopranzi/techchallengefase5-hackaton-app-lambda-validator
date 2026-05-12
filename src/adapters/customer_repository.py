@@ -11,6 +11,7 @@ class CustomerRepository:
         self.user = os.environ.get("DB_USER")
         self.password = os.environ.get("DB_PASS")
         self.port = int(os.environ.get("DB_PORT", 5432))
+        self._schema_ready = False
 
     def get_connection(self):
         missing = [
@@ -27,7 +28,7 @@ class CustomerRepository:
 
         # Conexão com timeout curto para não estourar o tempo da Lambda
         print(f"[DB] Conectando em host={self.host} db={self.database} user={self.user} port={self.port}")
-        return psycopg2.connect(
+        conn = psycopg2.connect(
             host=self.host,
             database=self.database,
             user=self.user,
@@ -35,6 +36,34 @@ class CustomerRepository:
             port=self.port,
             connect_timeout=3
         )
+        self.ensure_schema(conn)
+        return conn
+
+    def ensure_schema(self, conn):
+        if self._schema_ready:
+            return
+
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS customers (
+                    id uuid PRIMARY KEY,
+                    name varchar(255) NOT NULL,
+                    document varchar(14) NOT NULL UNIQUE,
+                    email varchar(255) NOT NULL UNIQUE,
+                    password varchar(255),
+                    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute("ALTER TABLE customers ADD COLUMN IF NOT EXISTS password varchar(255)")
+            cursor.execute("ALTER TABLE customers ADD COLUMN IF NOT EXISTS created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP")
+            cursor.execute("ALTER TABLE customers ADD COLUMN IF NOT EXISTS updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP")
+            cursor.execute("ALTER TABLE customers ADD COLUMN IF NOT EXISTS document varchar(14)")
+            cursor.execute("ALTER TABLE customers ADD COLUMN IF NOT EXISTS email varchar(255)")
+            cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS customers_document_uq ON customers (document)")
+            cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS customers_email_uq ON customers (email)")
+        conn.commit()
+        self._schema_ready = True
 
     def get_customer_by_cpf(self, cpf: str):
         conn = None
